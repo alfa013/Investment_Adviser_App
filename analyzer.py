@@ -1,58 +1,79 @@
 import pandas as pd
-import numpy as np
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import ta  # Technical Analysis library
 
-# --- NLTK Setup ---
 def initialize_nltk():
-    """Download the VADER lexicon if it's not already present."""
+    """
+    Downloads the VADER lexicon for sentiment analysis if not already present.
+    """
     try:
-        # This will raise a LookupError if the resource is not found
         nltk.data.find('sentiment/vader_lexicon.zip')
     except LookupError:
-        # Catch the more general LookupError
-        print("Downloading VADER lexicon for sentiment analysis...")
+        print("Downloading NLTK VADER lexicon...")
         nltk.download('vader_lexicon')
 
-# Initialize NLTK right away
+# Initialize NLTK resources once when the module is imported
 initialize_nltk()
 
-def calculate_technical_indicators(hist_df):
+def calculate_technical_indicators(stock_hist_df):
     """
-    Calculates technical indicators (SMA 50, SMA 200) for a stock.
+    Calculates technical indicators for the given stock history.
 
     Args:
-        hist_df (pd.DataFrame): DataFrame with historical stock data.
+        stock_hist_df (pd.DataFrame): DataFrame with historical stock data.
 
     Returns:
-        pd.DataFrame: The original DataFrame with added columns for indicators.
+        pd.DataFrame: DataFrame with added technical indicator columns.
     """
-    if hist_df is None or len(hist_df) < 200:
-        return None # Not enough data for 200-day SMA
+    if stock_hist_df.empty:
+        return stock_hist_df
 
-    df = hist_df.copy()
-    df['SMA_50'] = df['Close'].rolling(window=50).mean()
-    df['SMA_200'] = df['Close'].rolling(window=200).mean()
-    return df
+    # Add all technical indicators using the 'ta' library
+    df_with_indicators = ta.add_all_ta_features(
+        stock_hist_df,
+        open="Open",
+        high="High",
+        low="Low",
+        close="Close",
+        volume="Volume",
+        fillna=True  # Fill NaN values that are generated
+    )
+
+    # Explicitly calculate 50 and 200 period SMA and EMA for clarity
+    df_with_indicators['SMA_50'] = df_with_indicators['Close'].rolling(window=50).mean()
+    df_with_indicators['SMA_200'] = df_with_indicators['Close'].rolling(window=200).mean()
+    df_with_indicators['EMA_50'] = df_with_indicators['Close'].ewm(span=50, adjust=False).mean()
+    df_with_indicators['EMA_200'] = df_with_indicators['Close'].ewm(span=200, adjust=False).mean()
+
+
+    # Note: 'ta' already calculates the following, which we use in the main app:
+    # RSI is calculated as 'momentum_rsi'
+    # MACD is calculated as 'trend_macd', 'trend_macd_signal', 'trend_macd_diff'
+
+    return df_with_indicators
+
 
 def analyze_sentiment(articles):
     """
-    Performs sentiment analysis on a list of news articles.
+    Analyzes the sentiment of a list of news articles.
 
     Args:
-        articles (list): A list of news article dictionaries.
+        articles (list): A list of article dictionaries.
 
     Returns:
-        float: The average compound sentiment score, ranging from -1 (very negative) to 1 (very positive).
+        float: The average sentiment score of the articles.
     """
     if not articles:
         return 0.0
 
-    sid = SentimentIntensityAnalyzer()
-    sentiment_scores = [
-        sid.polarity_scores(article['title'])['compound']
-        for article in articles if article and article['title']
-    ]
+    sia = SentimentIntensityAnalyzer()
+    total_sentiment = 0
     
-    return np.mean(sentiment_scores) if sentiment_scores else 0.0
+    for article in articles:
+        if article.get('title'):
+            sentiment = sia.polarity_scores(article['title'])
+            total_sentiment += sentiment['compound']
+            
+    return total_sentiment / len(articles) if articles else 0.0
 

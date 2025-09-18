@@ -1,50 +1,134 @@
-def generate_advice(hist_with_indicators, sentiment_score, risk_tolerance):
+import pandas as pd
+import requests
+import json
+
+def generate_advice(hist_df, sentiment_score, risk_tolerance):
     """
-    Generates investment advice based on technicals, sentiment, and user risk tolerance.
+    Generates a simple 'Buy', 'Sell', or 'Hold' recommendation based on technical and sentiment signals.
+    This function provides the high-level tag for the recommendation card.
+    """
+    if hist_df is None or 'SMA_50' not in hist_df.columns or 'SMA_200' not in hist_df.columns or len(hist_df) < 2:
+        return "Insufficient Data", "Could not generate advice due to lack of historical data.", "hold"
+
+    # --- Technical Signal based on SMA Crossover ---
+    latest_sma_50 = hist_df['SMA_50'].iloc[-1]
+    latest_sma_200 = hist_df['SMA_200'].iloc[-1]
+    previous_sma_50 = hist_df['SMA_50'].iloc[-2]
+    previous_sma_200 = hist_df['SMA_200'].iloc[-2]
+
+    technical_signal = 0 # Neutral
+    if latest_sma_50 > latest_sma_200 and previous_sma_50 <= previous_sma_200:
+        technical_signal = 1 # Golden Cross (Bullish)
+    elif latest_sma_50 < latest_sma_200 and previous_sma_50 >= previous_sma_200:
+        technical_signal = -1 # Death Cross (Bearish)
+
+    # --- Combine Signals for a Recommendation ---
+    # (This is a simplified logic model)
+    score = technical_signal + (sentiment_score * 2) # Giving sentiment more weight
+
+    advice = "Hold"
+    style_class = "hold"
+
+    if score > 1.0:
+        advice = "Strong Buy"
+        style_class = "buy"
+    elif score > 0.2:
+        advice = "Buy"
+        style_class = "buy"
+    elif score < -1.0:
+        advice = "Strong Sell"
+        style_class = "sell"
+    elif score < -0.2:
+        advice = "Sell"
+        style_class = "sell"
+
+    # Adjusting for risk tolerance
+    if risk_tolerance == "Low" and (advice == "Strong Buy" or advice == "Buy"):
+        advice = "Consider Buying"
+    if risk_tolerance == "High" and advice == "Hold" and technical_signal > 0:
+        advice = "Speculative Buy"
+
+    # We will let Gemini generate the detailed explanation
+    explanation = f"Generated based on technical indicators and a sentiment score of {sentiment_score:.2f}."
+
+    return advice, explanation, style_class
+
+
+def generate_gemini_report(stock_info, tech_indicators, sentiment, risk, api_key):
+    """
+    Generates a detailed investment report using the Google Gemini API.
 
     Args:
-        hist_with_indicators (pd.DataFrame): DataFrame with price data and technical indicators.
-        sentiment_score (float): The average news sentiment score.
-        risk_tolerance (str): The user's selected risk tolerance ("Low", "Medium", "High").
+        stock_info (dict): Dictionary of company information.
+        tech_indicators (pd.DataFrame): DataFrame with historical data and SMAs.
+        sentiment (float): The average news sentiment score.
+        risk (str): The user's risk tolerance ('Low', 'Medium', 'High').
+        api_key (str): The user's Google Gemini API key.
 
     Returns:
-        tuple: A tuple containing the advice (str), a detailed explanation (str), and a style class (str).
+        str: A Markdown-formatted report from Gemini, or an error message.
     """
-    if hist_with_indicators is None:
-        return "Hold", "Insufficient historical data for a full analysis (less than 200 days).", "hold"
+    if not api_key:
+        return "### Gemini API Key Not Provided\n\nPlease enter your Google Gemini API key in the sidebar to generate a detailed report."
 
-    # --- Technical Signal ---
-    last_sma_50 = hist_with_indicators['SMA_50'].iloc[-1]
-    last_sma_200 = hist_with_indicators['SMA_200'].iloc[-1]
-    tech_signal = 1 if last_sma_50 > last_sma_200 else -1
-    
-    # --- Sentiment Signal ---
-    sent_signal = 1 if sentiment_score > 0.1 else (-1 if sentiment_score < -0.1 else 0)
-    
-    combined_signal = tech_signal + sent_signal
-    
-    advice, reason, style_class = "Hold", "Signals are neutral or conflicting.", "hold"
+    # --- Construct a detailed prompt for the Gemini API ---
+    latest_price = tech_indicators['Close'].iloc[-1]
+    latest_sma_50 = tech_indicators['SMA_50'].iloc[-1]
+    latest_sma_200 = tech_indicators['SMA_200'].iloc[-1]
+    company_name = stock_info.get('longName', 'the company')
 
-    # --- Decision Logic ---
-    if combined_signal >= 2:
-        advice, reason, style_class = "Strong Buy", "Strong positive technicals and news sentiment.", "buy"
-    elif combined_signal == 1:
-        if risk_tolerance == "High":
-            advice, reason, style_class = "Buy", "Positive signals suggest potential upside for higher-risk investors.", "buy"
-        else:
-            advice, reason, style_class = "Hold", "Signals are positive but not strong enough for a lower-risk profile.", "hold"
-    elif combined_signal == -1:
-        if risk_tolerance != "Low":
-            advice, reason, style_class = "Sell", "Negative signals suggest potential downside risk.", "sell"
-        else:
-            advice, reason, style_class = "Hold", "Signals are negative but not a strong enough sell signal for a low-risk profile.", "hold"
-    elif combined_signal <= -2:
-        advice, reason, style_class = "Strong Sell", "Strong negative technicals and news sentiment indicate high risk.", "sell"
-        
-    explanation = (
-        f"{reason} The 50-day moving average ({last_sma_50:.2f}) is currently "
-        f"{'above' if tech_signal == 1 else 'below'} the 200-day moving average ({last_sma_200:.2f}). "
-        f"Recent news sentiment is {'positive' if sent_signal == 1 else 'negative' if sent_signal == -1 else 'neutral'} "
-        f"with a score of {sentiment_score:.2f}."
-    )
-    return advice, explanation, style_class
+    # Determine technical situation
+    tech_situation = f"The 50-day moving average (${latest_sma_50:.2f}) is currently above the 200-day moving average (${latest_sma_200:.2f}), which is generally a bullish sign."
+    if latest_sma_50 < latest_sma_200:
+        tech_situation = f"The 50-day moving average (${latest_sma_50:.2f}) is currently below the 200-day moving average (${latest_sma_200:.2f}), which is generally a bearish sign."
+
+    # Determine sentiment situation
+    sentiment_situation = "Neutral"
+    if sentiment > 0.2: sentiment_situation = "Positive"
+    elif sentiment < -0.2: sentiment_situation = "Negative"
+
+    prompt = f"""
+    As an expert financial analyst, generate a comprehensive investment report for {company_name} ({stock_info.get('symbol', '')}).
+    The target audience is an investor with a **{risk}** risk tolerance.
+
+    **Current Data:**
+    - **Latest Closing Price:** ${latest_price:.2f}
+    - **Market Cap:** ${stock_info.get('marketCap', 0):,}
+    - **P/E Ratio:** {stock_info.get('trailingPE', 'N/A'):.2f}
+    - **52-Week High:** ${stock_info.get('fiftyTwoWeekHigh', 0):.2f}
+    - **52-Week Low:** ${stock_info.get('fiftyTwoWeekLow', 0):.2f}
+    - **Technical Situation:** {tech_situation}
+    - **Recent News Sentiment:** {sentiment_situation} (Score: {sentiment:.2f})
+
+    **Task:**
+    Based on the data above and the investor's {risk} risk profile, provide a detailed report.
+    Structure the report with the following Markdown sections:
+    - `### Executive Summary` (A brief, high-level recommendation and overview).
+    - `### Technical Analysis` (Elaborate on the moving averages and what they imply).
+    - `### Sentiment Analysis` (Discuss the news sentiment and its potential impact).
+    - `### Risk Assessment` (Analyze the potential risks, specifically tailored to a {risk} risk tolerance investor).
+    - `### Final Recommendation` (Provide a concluding paragraph with a clear course of action).
+
+    The tone should be professional, balanced, and strictly informational. Do not give financial advice, but rather an expert analysis based on the provided data.
+    """
+
+    # --- API Call to Gemini ---
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }]
+    }
+    headers = {'Content-Type': 'application/json'}
+
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        response.raise_for_status()  # Raise an exception for bad status codes
+        result = response.json()
+        report = result['candidates'][0]['content']['parts'][0]['text']
+        return report
+    except requests.exceptions.RequestException as e:
+        return f"### Error Connecting to Gemini API\n\nAn error occurred: {e}\nPlease check your API key and network connection."
+    except (KeyError, IndexError) as e:
+        return f"### Error Parsing Gemini Response\n\nReceived an unexpected response from the API: {result}"
+

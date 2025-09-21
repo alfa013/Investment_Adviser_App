@@ -1,4 +1,4 @@
-# Investment advisor App
+# Investment Adviser App
 
 ### Problem :
 There is an investor who has portfolio of investments and he requires an interface where he can monitor and take decisions for his portfolio's best interest. For instance he has 1stock of company 'A', he wants to make sure when is the best time to sell, buy, hold the stock for profits. He also wants to get the latest data and news related to his stock.

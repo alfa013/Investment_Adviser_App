@@ -7,6 +7,7 @@ from plotly.subplots import make_subplots
 from data_fetcher import get_stock_data, get_news_data
 from analyzer import calculate_technical_indicators, analyze_sentiment
 from adviser import generate_advice, generate_gemini_report
+from chatbot import get_chatbot_response
 
 # --- Page Configuration and CSS ---
 st.set_page_config(
@@ -33,7 +34,7 @@ body {
 .main .block-container {
     padding: 1rem 3rem;
 }
-h1, h2 {
+h1, h2, h3 {
     color: #2D3748; /* Darker, more professional headers */
 }
 /* Card styling */
@@ -130,7 +131,7 @@ h1, h2 {
     background-color: #FFFFFF;
     border-right: 1px solid #E0E0E0;
 }
-.st-emotion-cache-16txtl3 h2 {
+.st-emotion-cache-16txtl3 h2, .st-emotion-cache-16txtl3 h3 {
     font-weight: 700;
     color: #0072B5;
 }
@@ -150,6 +151,19 @@ div.stButton > button:first-child {
 div.stButton > button:hover {
     background-image: linear-gradient(45deg, #3A7BC2 0%, #005A94 100%);
     box-shadow: 0 6px 15px rgba(74, 144, 226, 0.4);
+}
+/* Category button styling */
+div.stButton > button.category-button {
+    background: #F8F9FA;
+    color: #4A5568;
+    border: 1px solid #E0E0E0;
+    font-weight: 400;
+    margin-top: 0.5rem;
+    box-shadow: none;
+}
+div.stButton > button.category-button:hover {
+    background: #E0E0E0;
+    color: #2D3748;
 }
 /* Markdown report styling */
 .report-card h3 {
@@ -179,31 +193,66 @@ div.stButton > button:hover {
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state to hold analysis results
+# --- Stock Categories Data ---
+STOCK_CATEGORIES = {
+    "Big Tech": ["MSFT", "AAPL", "GOOGL", "NVDA", "META"],
+    "Pharma": ["PFE", "JNJ", "LLY", "MRNA", "ABBV"],
+    "BFSI": ["JPM", "BAC", "GS", "MS", "WFC"],
+    "EV Makers": ["TSLA", "RIVN", "LCID", "F", "GM"]
+}
+
+# Initialize session state to hold analysis results and chat history
 if 'analysis_done' not in st.session_state:
     st.session_state.analysis_done = False
+if 'messages' not in st.session_state:
+    st.session_state.messages = []
+if 'ticker_input' not in st.session_state:
+    st.session_state.ticker_input = "AAPL"
+
+# --- Callback function to update ticker input ---
+def set_ticker(ticker):
+    st.session_state.ticker_input = ticker
 
 # --- UI Layout ---
 with st.sidebar:
     st.markdown("## 📈 AI Adviser")
     st.markdown("---")
-    ticker_input = st.text_input("Enter Stock Ticker", value="AAPL", help="e.g., AAPL, GOOGL, MSFT").upper()
+    # Using a key allows us to update this widget programmatically
+    ticker_input = st.text_input(
+        "Enter Stock Ticker",
+        key="ticker_input",
+        help="e.g., AAPL, GOOGL, MSFT"
+    ).upper()
+
     risk_tolerance = st.select_slider("Select Your Risk Tolerance", options=["Low", "Medium", "High"], value="Medium")
     news_api_key = st.text_input("Enter NewsAPI Key", type="password", help="Get a free key from newsapi.org")
     gemini_api_key = st.text_input("Enter Gemini API Key", type="password", help="Get a free key from Google AI Studio")
     analyze_button = st.button("Analyze & Advise")
+
+    # --- NEW: Discover Stocks Section ---
+    st.markdown("---")
+    st.markdown("### Discover Stocks")
+    st.markdown("Click a category to select a stock.")
+
+    # Create two columns for the category buttons
+    col1, col2 = st.columns(2)
+    with col1:
+        st.button(STOCK_CATEGORIES["Big Tech"][0], on_click=set_ticker, args=(STOCK_CATEGORIES["Big Tech"][0],), use_container_width=True, type="secondary")
+        st.button(STOCK_CATEGORIES["Pharma"][0], on_click=set_ticker, args=(STOCK_CATEGORIES["Pharma"][0],), use_container_width=True, type="secondary")
+    with col2:
+        st.button(STOCK_CATEGORIES["BFSI"][0], on_click=set_ticker, args=(STOCK_CATEGORIES["BFSI"][0],), use_container_width=True, type="secondary")
+        st.button(STOCK_CATEGORIES["EV Makers"][0], on_click=set_ticker, args=(STOCK_CATEGORIES["EV Makers"][0],), use_container_width=True, type="secondary")
 
     # Navigation appears only after an analysis has been run
     if st.session_state.analysis_done:
         st.markdown("---")
         st.session_state.page = st.radio(
             "Navigation",
-            ["Dashboard", "Detailed AI Report"],
+            ["Dashboard", "Detailed AI Report", "Chatbot"],
             key="navigation"
         )
 
 # --- App Logic ---
-# This block runs when the "Analyze" button is clicked
 if analyze_button:
     if not ticker_input:
         st.warning("Please enter a stock ticker.")
@@ -229,6 +278,12 @@ if analyze_button:
                 st.session_state.gemini_report = gemini_report
                 st.session_state.current_ticker = ticker_input
                 st.session_state.page = "Dashboard"
+
+                # Reset chat history for the new stock
+                st.session_state.messages = [{
+                    "role": "assistant",
+                    "content": f"Hello! I'm InvestaBot. How can I help you with {st.session_state.current_ticker} today?"
+                }]
                 st.rerun()
             else:
                 st.error(f"Could not retrieve data for ticker: {ticker_input}. Please check the ticker symbol.")
@@ -236,9 +291,10 @@ if analyze_button:
 
 # --- Display Area ---
 if st.session_state.analysis_done:
-    st.title(f"Analysis for {st.session_state.current_ticker}")
 
+    # --- DASHBOARD PAGE ---
     if st.session_state.page == "Dashboard":
+        st.title(f"Analysis for {st.session_state.current_ticker}")
         st.markdown("AI-powered insights into your next investment decision.")
         st.markdown("---")
         col1, col2 = st.columns([1, 2], gap="large")
@@ -266,24 +322,24 @@ if st.session_state.analysis_done:
             """, unsafe_allow_html=True)
 
         st.markdown("---")
-        
+
         chart_col, news_col = st.columns([2, 1], gap="large")
         with chart_col:
             st.markdown("### Advanced Charting")
             df = st.session_state.hist_with_indicators.tail(365) # Show last year of data
-            
+
             tab1, tab2 = st.tabs(["Price Action (Candlestick)", "Momentum Indicators (RSI, MACD)"])
 
             with tab1:
-                fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                                    vertical_spacing=0.05, subplot_titles=('Price', 'Volume'), 
+                fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                                    vertical_spacing=0.05, subplot_titles=('Price', 'Volume'),
                                     row_heights=[0.7, 0.3])
 
                 # Candlestick
                 fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'],
-                                             low=df['Low'], close=df['Close'], name='Price'), 
+                                             low=df['Low'], close=df['Close'], name='Price'),
                               row=1, col=1)
-                
+
                 # Moving Averages
                 fig.add_trace(go.Scatter(x=df.index, y=df['SMA_50'], line=dict(color='orange', width=1.5), name='SMA 50'), row=1, col=1)
                 fig.add_trace(go.Scatter(x=df.index, y=df['SMA_200'], line=dict(color='purple', width=1.5), name='SMA 200'), row=1, col=1)
@@ -301,19 +357,19 @@ if st.session_state.analysis_done:
                 st.plotly_chart(fig, use_container_width=True)
 
             with tab2:
-                fig2 = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                fig2 = make_subplots(rows=2, cols=1, shared_xaxes=True,
                                      vertical_spacing=0.1, subplot_titles=('Relative Strength Index (RSI)', 'MACD'))
 
                 # RSI
                 fig2.add_trace(go.Scatter(x=df.index, y=df['momentum_rsi'], name='RSI'), row=1, col=1)
                 fig2.add_hline(y=70, line_dash="dash", line_color="red", annotation_text="Overbought", row=1, col=1)
                 fig2.add_hline(y=30, line_dash="dash", line_color="green", annotation_text="Oversold", row=1, col=1)
-                
+
                 # MACD
                 fig2.add_trace(go.Scatter(x=df.index, y=df['trend_macd'], name='MACD', line=dict(color='blue')), row=2, col=1)
                 fig2.add_trace(go.Scatter(x=df.index, y=df['trend_macd_signal'], name='Signal Line', line=dict(color='orange')), row=2, col=1)
                 fig2.add_trace(go.Bar(x=df.index, y=df['trend_macd_diff'], name='Histogram', marker_color='rgba(0, 0, 0, 0.3)'), row=2, col=1)
-                
+
                 fig2.update_layout(showlegend=True, height=600,
                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 fig2.update_yaxes(title_text="RSI", row=1, col=1)
@@ -332,16 +388,50 @@ if st.session_state.analysis_done:
                 st.markdown('</div>', unsafe_allow_html=True)
 
 
+    # --- DETAILED REPORT PAGE ---
     elif st.session_state.page == "Detailed AI Report":
+        st.title(f"AI-Generated Report for {st.session_state.current_ticker}")
         st.markdown("---")
-        st.markdown("### AI-Generated Report")
+        st.markdown("### In-Depth Analysis by Gemini")
         st.markdown(f'<div class="card report-card">{st.session_state.gemini_report}</div>', unsafe_allow_html=True)
 
+    # --- CHATBOT PAGE ---
+    elif st.session_state.page == "Chatbot":
+        st.title(f"Chat with InvestaBot about {st.session_state.current_ticker}")
+        st.markdown("---")
+
+        # Display existing messages
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        # React to user input
+        if prompt := st.chat_input(f"Ask a follow-up question about {st.session_state.current_ticker}..."):
+            # Display user message in chat message container
+            st.chat_message("user").markdown(prompt)
+            # Add user message to chat history
+            st.session_state.messages.append({"role": "user", "content": prompt})
+
+            # Get and display assistant response
+            with st.spinner("InvestaBot is thinking..."):
+                response = get_chatbot_response(
+                    api_key=gemini_api_key,
+                    chat_history=st.session_state.messages,
+                    user_prompt=prompt,
+                    stock_ticker=st.session_state.current_ticker
+                )
+                with st.chat_message("assistant"):
+                    st.markdown(response)
+                # Add assistant response to chat history
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                st.rerun()
+
+# --- Initial Welcome Page ---
 else:
-    # This is the initial view before any analysis is run
     st.title(f"AI Investment Adviser")
     st.markdown("Your AI-powered copilot for navigating the financial markets. Enter a stock ticker and your details in the sidebar to begin.")
     st.info("Enter your preferences and click 'Analyze & Advise' to begin.")
+
 
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: #718096;'>Built with ❤️ using Streamlit & Gemini. For informational purposes only.</div>", unsafe_allow_html=True)

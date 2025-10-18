@@ -79,3 +79,17 @@ Each Python file in the project has a clearly defined role within this architect
         * The overall news sentiment score.
         * Crucially, the user's selected **risk tolerance**.
         It then instructs the AI to act as an expert financial analyst and write a comprehensive report that considers all these factors, resulting in a nuanced and personalized narrative that is far more insightful than a simple rule.
+
+## Images
+<br>
+<img width="1406" height="707" alt="image" src="https://github.com/user-attachments/assets/02a42a1f-8d23-4de8-bde3-b739ae158e06" />
+<br>
+<br>
+<br>
+<img width="1445" height="846" alt="image" src="https://github.com/user-attachments/assets/f6b451ed-270b-4545-8bdd-92bb6efa5bf0" />
+<br>
+<br>
+<br>
+<img width="1818" height="730" alt="image" src="https://github.com/user-attachments/assets/0c1fcf65-910b-4659-a1af-32ae023a368f" />
+
+

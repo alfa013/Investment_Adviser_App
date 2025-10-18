@@ -6,8 +6,6 @@ There is an investor who has portfolio of investments and he requires an interfa
 ### Solution :
 I will make a python app which uses yfinance and newsapi to gather data about stocks and bonds and then using AI and ML algorithms will try to give best prediction and analysis of the overall stock nature. I will give report of investment and it's future pathway.
 
-Of course. Here is an in-depth explanation of the AI Investment Adviser project, from its high-level introduction to its core components and overall system design.
-
 ---
 
 #### **1. Introduction: The Core Problem and Vision**

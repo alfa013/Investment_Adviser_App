@@ -32,7 +32,7 @@ def get_chatbot_response(api_key, chat_history, user_prompt, stock_ticker):
         """
         
         model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash',
+            model_name='gemini-2.5-pro',
             system_instruction=system_instruction
         )
 

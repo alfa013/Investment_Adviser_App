@@ -58,4 +58,3 @@ def get_news_data(ticker, api_key):
     except requests.exceptions.RequestException as e:
         st.warning(f"Could not fetch news. Please check your NewsAPI key. Error: {e}")
         return []
-

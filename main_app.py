@@ -250,8 +250,6 @@ with st.sidebar:
         ).upper()
         risk_tolerance = st.select_slider("Select Your Risk Tolerance", options=["Low", "Medium", "High"], value="Medium")
         news_api_key = st.text_input("Enter NewsAPI Key", type="password", help="Get a free key from newsapi.org")
-        # news_api_key="e83efd9adf1243ceaf317c1bf30b0613"
-        # gemini_api_key="AIzaSyAlcfYEh8ZNxDhaU64OEaOwQZCc6Fm-qNY"
         gemini_api_key = st.text_input("Enter Gemini API Key", type="password", help="Get a free key from Google AI Studio")
         analyze_button = st.button("Analyze & Advise")
 
@@ -467,4 +465,5 @@ elif st.session_state.main_view == "Discover":
 
 # --- Footer ---
 st.markdown("---")
+
 # st.markdown("<div style='text-align: center; color: #718096;'>Built with ❤️ using Streamlit & Gemini. For informational purposes only.</div>", unsafe_allow_html=True)
